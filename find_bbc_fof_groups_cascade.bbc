@@ -1,0 +1,205 @@
+   10 REM FRIENDS-OF-FRIENDS, BBC BASIC STYLE
+   20 REM DIRECT N-SQUARED SEARCH WITH PERIODIC BOUNDARIES
+   30 REM CASCADE TIMING VERSION, 2^12 TO 2^17
+   40 NMAX%=131072
+   50 NMIN%=10
+   60 BOX=1
+   70 B=0.2
+   80 NTRIALS%=1
+   90 PMIN%=12
+  100 PMAX%=17
+  110 DIM X(NMAX%),Y(NMAX%),Z(NMAX%)
+  120 DIM P%(NMAX%),R%(NMAX%),ROOT%(NMAX%)
+  130 DIM SIZE%(NMAX%),FIRST%(NMAX%),KEEP%(NMAX%)
+  140 OUT$="outdir/basic_fof_timings.txt"
+  150 FT%=OPENOUT(OUT$)
+  155 PROCline(FT%,"# input_file n_particles trial analysis_seconds n_raw_groups n_kept_groups")
+  158 CLOSE#FT%
+  160 FOR POW%=PMIN% TO PMAX%
+  170   NREQ%=2^POW%
+  180   PATH$=FNpath$(NREQ%)
+  190   PROCread(PATH$)
+  200   IF N%=0 PRINT "No particles loaded from ";PATH$:END
+  210   LL=B*(BOX^3/N%)^(1/3)
+  220   LL2=LL*LL
+  230   FOR TRIAL%=1 TO NTRIALS%
+  240     T0%=TIME
+  250     PROCanalyse
+  260     ELAPSED=(TIME-T0%)*0.01
+  270     S$=PATH$+" "+STR$(N%)+" "+STR$(TRIAL%)+" "+STR$(ELAPSED)
+  280     S$=S$+" "+STR$(NG%)+" "+STR$(NK%)
+  290     FT%=OPENUP(OUT$):PTR#FT%=EXT#FT%:PROCline(FT%,S$):CLOSE#FT%
+  300     PRINT PATH$;" trial ";TRIAL%;" time ";ELAPSED;" s groups ";NG%;" kept ";NK%
+  310   NEXT
+  320   REM COUNTS ONLY, AS IN THE PYTHON CASCADE TIMER
+  340 NEXT
+  360 PRINT "Wrote outdir/basic_fof_timings.txt"
+  390 END
+  900 DEF FNpath$(NN%)
+  910 LOCAL S$
+  920 S$=STR$(NN%)
+  930 IF LEFT$(S$,1)=" " S$=MID$(S$,2)
+  940 WHILE LEN(S$)<7
+  950   S$="0"+S$
+  960 ENDWHILE
+  970 ="data/ics_"+S$+".txt"
+ 1000 DEF PROCread(PATH$)
+ 1010 LOCAL F%,T$
+ 1020 F%=OPENIN(PATH$)
+ 1030 IF F%=0 PRINT "Cannot open ";PATH$:END
+ 1040 N%=0
+ 1050 REPEAT
+ 1060   T$=FNtoken$(F%)
+ 1070   IF T$<>"" THEN
+ 1080     N%=N%+1
+ 1090     IF N%>NMAX% PRINT "Too many particles":END
+ 1100     X(N%)=VAL(T$)
+ 1110     Y(N%)=VAL(FNtoken$(F%))
+ 1120     Z(N%)=VAL(FNtoken$(F%))
+ 1130   ENDIF
+ 1140 UNTIL EOF#F%
+ 1150 CLOSE#F%
+ 1160 ENDPROC
+ 1200 DEF FNtoken$(F%)
+ 1210 LOCAL C%,S$
+ 1220 S$=""
+ 1230 REPEAT
+ 1240   IF EOF#F% THEN =S$
+ 1250   C%=BGET#F%
+ 1260 UNTIL C%>32
+ 1270 REPEAT
+ 1280   IF C%=101 C%=69
+ 1285   S$=S$+CHR$(C%)
+ 1290   IF EOF#F% THEN =S$
+ 1300   C%=BGET#F%
+ 1310 UNTIL C%<=32
+ 1320 =S$
+ 1390 DEF PROCanalyse
+ 1400 PROCinitialise
+ 1410 PROCfindlinks
+ 1420 PROCmakegroups
+ 1430 ENDPROC
+ 1500 DEF PROCinitialise
+ 1510 LOCAL I%
+ 1520 FOR I%=1 TO N%
+ 1530   P%(I%)=I%
+ 1540   R%(I%)=0
+ 1550   ROOT%(I%)=0
+ 1560   SIZE%(I%)=0
+ 1570   FIRST%(I%)=0
+ 1580 NEXT
+ 1590 ENDPROC
+ 1600 DEF FNroot%(A%)
+ 1610 LOCAL B%
+ 1620 WHILE P%(A%)<>A%
+ 1630   B%=P%(A%)
+ 1640   P%(A%)=P%(B%)
+ 1650   A%=P%(A%)
+ 1660 ENDWHILE
+ 1670 =A%
+ 1700 DEF PROCjoin(A%,B%)
+ 1710 LOCAL RA%,RB%
+ 1720 RA%=FNroot%(A%)
+ 1730 RB%=FNroot%(B%)
+ 1740 IF RA%=RB% ENDPROC
+ 1750 IF R%(RA%)<R%(RB%) P%(RA%)=RB%:ENDPROC
+ 1760 IF R%(RA%)>R%(RB%) P%(RB%)=RA%:ENDPROC
+ 1770 P%(RB%)=RA%
+ 1780 R%(RA%)=R%(RA%)+1
+ 1790 ENDPROC
+ 2000 DEF PROCfindlinks
+ 2010 LOCAL I%,J%,DX,DY,DZ
+ 2020 FOR I%=1 TO N%-1
+ 2030   FOR J%=I%+1 TO N%
+ 2040     DX=ABS(X(I%)-X(J%))
+ 2050     IF DX>BOX/2 DX=BOX-DX
+ 2060     IF DX<=LL THEN
+ 2070       DY=ABS(Y(I%)-Y(J%))
+ 2080       IF DY>BOX/2 DY=BOX-DY
+ 2090       IF DY<=LL THEN
+ 2100         DZ=ABS(Z(I%)-Z(J%))
+ 2110         IF DZ>BOX/2 DZ=BOX-DZ
+ 2120         IF DZ<=LL THEN
+ 2130           IF DX*DX+DY*DY+DZ*DZ<=LL2 PROCjoin(I%,J%)
+ 2140         ENDIF
+ 2150       ENDIF
+ 2160     ENDIF
+ 2170   NEXT
+ 2180 NEXT
+ 2190 ENDPROC
+ 2400 DEF PROCmakegroups
+ 2410 LOCAL I%,G%
+ 2420 NG%=0
+ 2430 FOR I%=1 TO N%
+ 2440   ROOT%(I%)=FNroot%(I%)
+ 2450   G%=ROOT%(I%)
+ 2460   IF SIZE%(G%)=0 THEN NG%=NG%+1:FIRST%(G%)=I%
+ 2470   SIZE%(G%)=SIZE%(G%)+1
+ 2480 NEXT
+ 2490 NK%=0
+ 2500 FOR I%=1 TO N%
+ 2510   IF SIZE%(I%)>=NMIN% THEN NK%=NK%+1:KEEP%(NK%)=I%
+ 2520 NEXT
+ 2530 ENDPROC
+ 2600 DEF FNbetter%(A%,B%)
+ 2610 IF SIZE%(A%)>SIZE%(B%) THEN =TRUE
+ 2620 IF SIZE%(A%)<SIZE%(B%) THEN =FALSE
+ 2630 =FIRST%(A%)<FIRST%(B%)
+ 2700 DEF PROCsortgroups
+ 2710 LOCAL I%,J%,BEST%,T%
+ 2720 FOR I%=1 TO NK%-1
+ 2730   BEST%=I%
+ 2740   FOR J%=I%+1 TO NK%
+ 2750     IF FNbetter%(KEEP%(J%),KEEP%(BEST%)) BEST%=J%
+ 2760   NEXT
+ 2770   T%=KEEP%(I%):KEEP%(I%)=KEEP%(BEST%):KEEP%(BEST%)=T%
+ 2780 NEXT
+ 2790 ENDPROC
+ 3000 DEF PROCwritegroups
+ 3010 LOCAL FG%,FM%,I%,J%,G%,RX,RY,RZ,SX,SY,SZ
+ 3020 LOCAL DX,DY,DZ,CX,CY,CZ,S$
+ 3030 FG%=OPENOUT("outdir/bbc_groups.txt")
+ 3040 FM%=OPENOUT("outdir/bbc_members.txt")
+ 3050 PROCline(FG%,"# group_id size com_x com_y com_z")
+ 3060 PROCline(FM%,"# group_id size member_ids...")
+ 3070 FOR I%=1 TO NK%
+ 3080   G%=KEEP%(I%)
+ 3090   RX=X(FIRST%(G%)):RY=Y(FIRST%(G%)):RZ=Z(FIRST%(G%))
+ 3100   SX=0:SY=0:SZ=0
+ 3110   FOR J%=1 TO N%
+ 3120     IF ROOT%(J%)=G% THEN
+ 3130       DX=FNwrap(X(J%)-RX):DY=FNwrap(Y(J%)-RY)
+ 3140       DZ=FNwrap(Z(J%)-RZ)
+ 3150       SX=SX+RX+DX:SY=SY+RY+DY:SZ=SZ+RZ+DZ
+ 3160     ENDIF
+ 3170   NEXT
+ 3180   CX=FNbox(SX/SIZE%(G%))
+ 3190   CY=FNbox(SY/SIZE%(G%))
+ 3200   CZ=FNbox(SZ/SIZE%(G%))
+ 3210   S$=STR$(I%)+" "+STR$(SIZE%(G%))+" "+STR$(CX)
+ 3220   S$=S$+" "+STR$(CY)+" "+STR$(CZ)
+ 3230   PROCline(FG%,S$)
+ 3240   S$=STR$(I%)+" "+STR$(SIZE%(G%))
+ 3250   FOR J%=1 TO N%
+ 3260     IF ROOT%(J%)=G% S$=S$+" "+STR$(J%)
+ 3270   NEXT
+ 3280   PROCline(FM%,S$)
+ 3290 NEXT
+ 3300 CLOSE#FG%:CLOSE#FM%
+ 3310 ENDPROC
+ 3400 DEF FNwrap(A)
+ 3410 A=A-INT(A/BOX)*BOX
+ 3420 IF A>=BOX/2 A=A-BOX
+ 3430 IF A< -BOX/2 A=A+BOX
+ 3440 =A
+ 3500 DEF FNbox(A)
+ 3510 A=A-INT(A/BOX)*BOX
+ 3520 IF A<0 A=A+BOX
+ 3530 =A
+ 3600 DEF PROCline(F%,S$)
+ 3610 LOCAL I%
+ 3620 FOR I%=1 TO LEN(S$)
+ 3630   BPUT#F%,ASC(MID$(S$,I%,1))
+ 3640 NEXT
+ 3650 BPUT#F%,10
+ 3660 ENDPROC
