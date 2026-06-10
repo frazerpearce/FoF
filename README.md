@@ -165,3 +165,14 @@ Or, put more bluntly:
 Copyright (c) 2026 Frazer Pearce
 
 Released under the MIT Licence. See the LICENSE file for details.
+
+## Disclaimer
+
+This software is provided "as is", without warranty of any kind,
+express or implied, including but not limited to the warranties of
+merchantability, fitness for a particular purpose and noninfringement.
+
+The authors shall not be liable for any claim, damages or other
+liability arising from the use of this software.
+
+This project is intended for educational and benchmarking purposes.
