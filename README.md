@@ -159,3 +159,9 @@ The most important lesson from this project is that the largest performance gain
 Or, put more bluntly:
 
 > Most of the speedup came from learning not to do billions of unnecessary distance calculations.
+
+## Licence
+
+Copyright (c) 2026 Frazer Pearce
+
+Released under the MIT Licence. See the LICENSE file for details.
