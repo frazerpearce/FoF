@@ -25,17 +25,7 @@ The benchmark uses a standard Friends-of-Friends algorithm applied to synthetic 
 
 A cascade of increasingly large particle catalogues is generated:
 
-| N   |
-| --- |
-| 2¹² |
-| 2¹³ |
-| 2¹⁴ |
-| 2¹⁵ |
-| 2¹⁶ |
-| 2¹⁷ |
-| 2¹⁸ |
-| 2¹⁹ |
-| 2²⁰ |
+The benchmark uses particle counts from 2¹² to 2²⁰ in powers of two.
 
 The catalogues are nested. The first 2¹² particles of the largest catalogue form the 2¹² dataset, the first 2¹³ particles form the 2¹³ dataset, and so on. This ensures that every implementation is solving exactly the same problem at each particle count.
 
@@ -57,7 +47,7 @@ Interestingly, Pascal performs extremely well despite largely disappearing from 
 
 ### Fortran
 
-A traditional high-performance implementation using simple arrays and explicit loops.
+A traditional high-performance linked-cell implementation using simple arrays and explicit loops.
 
 This is typically the fastest implementation in the benchmark.
 
