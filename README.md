@@ -126,7 +126,6 @@ This difference becomes dramatic at large particle counts.
 ### Timing cascades
 
 * `*_cascade.*`
-* `*_cascade_timer.*`
 
 ### Analysis
 
@@ -135,7 +134,6 @@ This difference becomes dramatic at large particle counts.
 ### Outputs
 
 * `fof_scaling.png`
-* `*_fof_timings.txt`
 
 ---
 
