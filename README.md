@@ -18,6 +18,8 @@ Each implementation reads identical initial conditions and produces identical gr
 The project also serves as a small historical tour through the development of scientific computing, from hand-written algorithms in early microcomputer languages to modern library-driven workflows.
 
 ---
+![FoF Scaling Benchmark](fof_scaling.png)
+---
 
 ## The Test Problem
 
