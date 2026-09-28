@@ -1,180 +1,127 @@
-# FoF: A Multi-Language Friends-of-Friends Benchmark
+# FoF: a multi-language Friends-of-Friends benchmark
 
-## Overview
+How have scientific-programming styles changed over the last forty years when
+they solve exactly the same problem? This repository implements a simple
+Friends-of-Friends (FoF) group finder in BBC BASIC, Pascal, Fortran, C, C++,
+and Python, then measures how each version scales.
 
-This project implements the same Friends-of-Friends (FoF) group-finding algorithm in multiple programming languages and compares their scaling, performance, and development styles.
+![FoF scaling benchmark](fof_scaling.png)
 
-The original motivation was not to identify the fastest language, but to explore how scientific programming has evolved over the last forty years:
+**Takeaway:** the linked-cell and k-d tree implementations scale approximately
+linearly with particle count, while the naïve all-pairs BBC BASIC version scales
+quadratically. Choosing the right algorithm matters far more than choosing a
+"fast" language.
 
-* BBC BASIC
-* Pascal
-* Fortran
-* C
-* C++
-* Python
+## Quick start
 
-Each implementation reads identical initial conditions and produces identical group catalogues. Timing cascades are then used to compare scaling behaviour over a range of problem sizes.
+The following runs the C++ benchmark and regenerates a scaling plot. It needs a
+C++17 compiler, Python 3, NumPy, and Matplotlib. SciPy is additionally needed
+only for the Python cKDTree implementation.
 
-The project also serves as a small historical tour through the development of scientific computing, from hand-written algorithms in early microcomputer languages to modern library-driven workflows.
+```bash
+python3 generate_nested_ics.py
+mkdir -p outdir
 
----
-![FoF Scaling Benchmark](fof_scaling.png)
----
+c++ -O3 -march=native -DNDEBUG -std=c++17 \
+  find_cpp_fof_groups_cascade.c -o fof_cpp
+./fof_cpp
 
-## The Test Problem
+python3 plot_fof_scaling.py
+```
 
-The benchmark uses a standard Friends-of-Friends algorithm applied to synthetic particle distributions.
+Inputs are written to `data/`; timing tables, group catalogues, and the
+regenerated plot are written to `outdir/`. Run any of the other
+`find_*_fof_groups_cascade.*` programs before the last command to include its
+timings in the combined plot.
 
-A cascade of increasingly large particle catalogues is generated:
+Absolute runtimes depend on hardware, compiler, optimisation flags, and library
+versions. The scaling trends are the intended comparison.
 
-The benchmark uses particle counts from 2¹² to 2²⁰ in powers of two.
+## What is being measured?
 
-The catalogues are nested. The first 2¹² particles of the largest catalogue form the 2¹² dataset, the first 2¹³ particles form the 2¹³ dataset, and so on. This ensures that every implementation is solving exactly the same problem at each particle count.
+FoF links two particles when their periodic separation is below a linking
+length. Connected links form groups. The benchmark uses synthetic particle
+distributions in a periodic unit cube.
 
----
+It measures nested catalogues from 2¹² (4,096) to 2²⁰ (1,048,576) particles.
+The first 2¹² particles of the largest catalogue are the smallest input, the
+first 2¹³ are the next input, and so on. Every implementation therefore solves
+the same problem at every size.
 
-## Implementations
+Input-file reads and timing-table writes are excluded from the timed region;
+the reported time is FoF analysis and group construction.
 
-### BBC BASIC
+## Implementations at a glance
 
-A deliberately naïve implementation using an O(N²) all-pairs search.
+| Implementation | Neighbour search | Expected scaling |
+| --- | --- | --- |
+| BBC BASIC | all particle pairs | O(N²) |
+| Pascal | linked cells | approximately O(N) |
+| Fortran | linked cells | approximately O(N) |
+| C | linked cells with a sparse cell hash | approximately O(N) |
+| C++ | linked cells with a sparse cell hash | approximately O(N) |
+| Python (linked-cell) | linked cells in pure Python | approximately O(N) |
+| Python (cKDTree) | SciPy compiled spatial index | approximately O(N) |
 
-This version exists primarily as a historical reference point and demonstrates the importance of algorithmic complexity.
+The BBC BASIC version is intentionally naïve: it is a historical reference
+point, not a competitive group finder. The Pascal, Fortran, C, and C++ programs
+show variants of a hand-written spatial-index approach. The two Python versions
+contrast interpreter overhead with using a mature compiled library through a
+Python interface.
 
-### Pascal
+## Reproducing the comparison
 
-A linked-cell implementation using structured programming techniques typical of the late 1980s and early 1990s.
+1. Generate the shared catalogues with `python3 generate_nested_ics.py`.
+2. Create `outdir/` and compile or run the implementations available on your
+   machine. Each writes an `*_fof_timings.txt` file there.
+3. Run `python3 plot_fof_scaling.py` to read every available timing table,
+   compute median timings across trials, fit log-log slopes, and write:
 
-Interestingly, Pascal performs extremely well despite largely disappearing from modern scientific computing.
+   - `outdir/fof_scaling.png`
+   - `outdir/fof_scaling_fits.txt`
 
-### Fortran
+The benchmark is deliberately simple; it is not a production halo finder. Its
+purpose is to compare algorithmic choices, language styles, and scientific
+software ecosystems.
 
-A traditional high-performance linked-cell implementation using simple arrays and explicit loops.
+## What the benchmark demonstrates
 
-This is typically the fastest implementation in the benchmark.
+### Algorithms matter more than languages
 
-### C
+The difference between O(N²) and approximately O(N) dominates the results. A
+poor search strategy in a compiled language can lose to a good spatial index in
+a higher-level language.
 
-A pointer-based linked-cell implementation.
+### Ecosystems matter
 
-### C++
+The SciPy cKDTree version is competitive because it delegates the expensive
+spatial work to optimised compiled code. Modern scientific programming often
+means assembling well-tested components rather than reimplementing every
+algorithm.
 
-A class-based linked-cell implementation. 
-
-### Python (linked-cell)
-
-A direct translation of the linked-cell algorithm into pure Python.
-
-This demonstrates the cost of performing large numbers of operations inside the Python interpreter.
-
-### Python (cKDTree)
-
-Uses SciPy's highly optimised `cKDTree` implementation.
-
-Although written in Python, most of the heavy lifting is performed by compiled code within SciPy.
-
----
-
-## What This Project Demonstrates
-
-The benchmark illustrates several distinct effects.
-
-### 1. Algorithms matter more than languages
-
-The difference between O(N²) and O(N) dominates the comparison.
-
-A poorly chosen algorithm in a "fast" language can easily be slower than a good algorithm in a "slow" language.
-
-### 2. Ecosystems matter
-
-Modern Python is successful largely because of its ecosystem.
-
-The `cKDTree` implementation is competitive not because Python itself is fast, but because it provides convenient access to highly optimised compiled libraries.
-
-### 3. Development styles have evolved
-
-Scientific programming has shifted from:
-
-> Write everything yourself.
-
-to:
-
-> Assemble and orchestrate high-quality existing components.
-
-The benchmark attempts to capture that transition.
-
----
-
-## Typical Results
-
-The linked-cell and k-d tree implementations all exhibit approximately linear scaling:
-
-Time ∝ N
-
-The BBC BASIC implementation exhibits approximately quadratic scaling:
-
-Time ∝ N²
-
-This difference becomes dramatic at large particle counts.
-
----
-
-## Files
-
-### Initial condition generation
-
-* `generate_nested_ics.py`
-
-### Timing cascades
-
-* `*_cascade.*`
-
-### Analysis
-
-* `plot_fof_scaling.py`
-
-### Outputs
-
-* `fof_scaling.png`
-
----
-
-## Caveats
-
-This is not intended to be a production-quality halo finder.
-
-The benchmark is intentionally simple and exists primarily to compare:
-
-* language styles
-* implementation approaches
-* algorithmic choices
-* ecosystem effects
-
-rather than to maximise absolute performance.
-
----
-
-## Conclusion
-
-The most important lesson from this project is that the largest performance gains over the last forty years have come not from programming languages themselves, but from improvements in algorithms, libraries, and reusable software ecosystems.
-
-Or, put more bluntly:
-
-> Most of the speedup came from learning not to do billions of unnecessary distance calculations.
+### Development styles have evolved
+
+The implementations form a small historical tour: from writing every loop and
+data structure directly, through structured compiled programs, to orchestrating
+high-quality libraries. The comparison is about those trade-offs, not a ranking
+of languages.
+
+## Repository guide
+
+| File | Purpose |
+| --- | --- |
+| `generate_nested_ics.py` | creates the nested input catalogues |
+| `find_*_fof_groups_cascade.*` | language-specific benchmark programs |
+| `plot_fof_scaling.py` | combines available timing tables and plots scaling |
+| `compare_group_members.py` | compares group-membership outputs |
+| `fof_scaling.png` | example combined scaling plot |
 
 ## Licence
 
-Copyright (c) 2026 Frazer Pearce
-
-Released under the MIT Licence. See the LICENSE file for details.
+Copyright (c) 2026 Frazer Pearce. Released under the MIT Licence; see
+[LICENSE](LICENSE).
 
 ## Disclaimer
 
-This software is provided "as is", without warranty of any kind,
-express or implied, including but not limited to the warranties of
-merchantability, fitness for a particular purpose and noninfringement.
-
-The authors shall not be liable for any claim, damages or other
-liability arising from the use of this software.
-
-This project is intended for educational and benchmarking purposes.
+This software is provided "as is", without warranty of any kind, express or
+implied. It is intended for educational and benchmarking purposes.

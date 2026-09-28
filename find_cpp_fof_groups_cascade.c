@@ -138,8 +138,8 @@ public:
     CellList(const ParticleSet &particles, double linking_length)
         : particles_(particles), cell_x_(particles.size()), cell_y_(particles.size()),
           cell_z_(particles.size()), next_(particles.size(), -1) {
-        // Cells must be no wider than the linking length: with the 27-cell
-        // stencil this visits every possible link while keeping occupancy low.
+        // Cells are chosen at roughly the linking-length scale: with the
+        // 27-cell stencil this visits every possible link while keeping occupancy low.
         // A dense grid at this resolution would be impractically large, so
         // only occupied cells are stored in this open-addressing hash table.
         ncell_ = static_cast<int>(std::floor(BOX_SIZE / linking_length));
