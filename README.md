@@ -59,7 +59,7 @@ A pointer-based linked-cell implementation.
 
 ### C++
 
-A class-based linked-cell implementation. Note this code probably needs some work. I'd expect the timing to be similar to C, Fortran & Pascal if I tried a bit harder.
+A class-based linked-cell implementation. 
 
 ### Python (linked-cell)
 
