@@ -3,6 +3,7 @@
 #include <chrono>
 #include <cmath>
 #include <cstddef>
+#include <cstdint>
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
@@ -135,45 +136,42 @@ struct FoFResult {
 class CellList {
 public:
     CellList(const ParticleSet &particles, double linking_length)
-        : particles_(particles) {
-        const double target_cell_size = 4.0 * linking_length;
-        ncell_ = static_cast<int>(std::floor(BOX_SIZE / target_cell_size));
+        : particles_(particles), cell_x_(particles.size()), cell_y_(particles.size()),
+          cell_z_(particles.size()), next_(particles.size(), -1) {
+        // Cells must be no wider than the linking length: with the 27-cell
+        // stencil this visits every possible link while keeping occupancy low.
+        // A dense grid at this resolution would be impractically large, so
+        // only occupied cells are stored in this open-addressing hash table.
+        ncell_ = static_cast<int>(std::floor(BOX_SIZE / linking_length));
         if (ncell_ < 1) ncell_ = 1;
-        cell_size_ = BOX_SIZE / static_cast<double>(ncell_);
-        ncell2_ = ncell_ * ncell_;
-        const std::size_t ncells = static_cast<std::size_t>(ncell_) *
-                                   static_cast<std::size_t>(ncell_) *
-                                   static_cast<std::size_t>(ncell_);
-
-        head_.assign(ncells, -1);
-        next_.assign(particles_.size(), -1);
+        capacity_ = 1;
+        while (capacity_ < 4 * particles_.size() + 16) capacity_ <<= 1;
+        keys_.assign(capacity_, -1);
+        heads_.assign(capacity_, -1);
 
         for (std::size_t i = 0; i < particles_.size(); ++i) {
-            const int cell = cell_index(particles_[i]);
-            next_[i] = head_[static_cast<std::size_t>(cell)];
-            head_[static_cast<std::size_t>(cell)] = static_cast<int>(i);
+            cell_x_[i] = coordinate_to_cell(particles_[i][0]);
+            cell_y_[i] = coordinate_to_cell(particles_[i][1]);
+            cell_z_[i] = coordinate_to_cell(particles_[i][2]);
+            const std::size_t slot = find_slot(cell_key(cell_x_[i], cell_y_[i], cell_z_[i]));
+            if (keys_[slot] == -1) keys_[slot] = cell_key(cell_x_[i], cell_y_[i], cell_z_[i]);
+            next_[i] = heads_[slot];
+            heads_[slot] = static_cast<int>(i);
         }
     }
 
     template <typename Callback>
     void for_candidate_pairs(Callback &&callback) const {
-        for (int cx = 0; cx < ncell_; ++cx) {
-            for (int cy = 0; cy < ncell_; ++cy) {
-                for (int cz = 0; cz < ncell_; ++cz) {
-                    const int cell = flat_index(cx, cy, cz);
-                    for (int i = head_[static_cast<std::size_t>(cell)]; i >= 0; i = next_[static_cast<std::size_t>(i)]) {
-                        for (int dx = -1; dx <= 1; ++dx) {
-                            const int nx = wrap_cell(cx + dx);
-                            for (int dy = -1; dy <= 1; ++dy) {
-                                const int ny = wrap_cell(cy + dy);
-                                for (int dz = -1; dz <= 1; ++dz) {
-                                    const int nz = wrap_cell(cz + dz);
-                                    const int neighbour_cell = flat_index(nx, ny, nz);
-                                    for (int j = head_[static_cast<std::size_t>(neighbour_cell)]; j >= 0; j = next_[static_cast<std::size_t>(j)]) {
-                                        if (j > i) callback(i, j);
-                                    }
-                                }
-                            }
+        for (std::size_t i = 0; i < particles_.size(); ++i) {
+            for (int dx = -1; dx <= 1; ++dx) {
+                const int nx = wrap_cell(cell_x_[i] + dx);
+                for (int dy = -1; dy <= 1; ++dy) {
+                    const int ny = wrap_cell(cell_y_[i] + dy);
+                    for (int dz = -1; dz <= 1; ++dz) {
+                        const int nz = wrap_cell(cell_z_[i] + dz);
+                        for (int j = head_for(cell_key(nx, ny, nz)); j >= 0;
+                             j = next_[static_cast<std::size_t>(j)]) {
+                            if (j > static_cast<int>(i)) callback(static_cast<int>(i), j);
                         }
                     }
                 }
@@ -184,10 +182,38 @@ public:
 private:
     const ParticleSet &particles_;
     int ncell_ = 1;
-    int ncell2_ = 1;
-    double cell_size_ = BOX_SIZE;
-    std::vector<int> head_;
+    std::size_t capacity_ = 1;
+    std::vector<std::int64_t> keys_;
+    std::vector<int> heads_;
+    std::vector<int> cell_x_;
+    std::vector<int> cell_y_;
+    std::vector<int> cell_z_;
     std::vector<int> next_;
+
+    static std::uint64_t hash_key(std::uint64_t value) {
+        value ^= value >> 33;
+        value *= UINT64_C(0xff51afd7ed558ccd);
+        value ^= value >> 33;
+        value *= UINT64_C(0xc4ceb9fe1a85ec53);
+        return value ^ (value >> 33);
+    }
+
+    std::int64_t cell_key(int x, int y, int z) const {
+        return static_cast<std::int64_t>(x) + static_cast<std::int64_t>(ncell_) *
+               (static_cast<std::int64_t>(y) + static_cast<std::int64_t>(ncell_) * z);
+    }
+
+    std::size_t find_slot(std::int64_t key) const {
+        const std::size_t mask = capacity_ - 1;
+        std::size_t slot = static_cast<std::size_t>(hash_key(static_cast<std::uint64_t>(key))) & mask;
+        while (keys_[slot] != -1 && keys_[slot] != key) slot = (slot + 1) & mask;
+        return slot;
+    }
+
+    int head_for(std::int64_t key) const {
+        const std::size_t slot = find_slot(key);
+        return keys_[slot] == key ? heads_[slot] : -1;
+    }
 
     int wrap_cell(int value) const {
         if (value < 0) return value + ncell_;
@@ -196,23 +222,12 @@ private:
     }
 
     int coordinate_to_cell(double x) const {
-        int cell = static_cast<int>(std::floor(x / cell_size_));
+        int cell = static_cast<int>(std::floor(x * static_cast<double>(ncell_)));
         if (cell < 0) cell = 0;
         if (cell >= ncell_) cell = ncell_ - 1;
         return cell;
     }
 
-    int flat_index(int cx, int cy, int cz) const {
-        return (cx * ncell_ + cy) * ncell_ + cz;
-    }
-
-    int cell_index(const Particle &particle) const {
-        return flat_index(
-            coordinate_to_cell(particle[0]),
-            coordinate_to_cell(particle[1]),
-            coordinate_to_cell(particle[2])
-        );
-    }
 };
 
 class FoFFinder {
